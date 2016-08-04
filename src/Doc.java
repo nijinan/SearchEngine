@@ -1,7 +1,7 @@
 import java.util.ArrayList;
 import java.util.List;
 
-public class Document{
+public class Doc{
 	String name = "";
 	int id;
 	double factor = 0;

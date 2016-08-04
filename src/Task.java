@@ -7,7 +7,7 @@ public class Task{
 	double idf = 0;
 	double score;
 	String text;
-	Document doc;
+	Doc doc;
 	List<Word> words = new ArrayList<Word>();
 	List<Double> relevances = new ArrayList<Double>();
 	List<Double> tfidf = new ArrayList<Double>();
@@ -20,13 +20,18 @@ public class Task{
 		boolean knnexist = false;
 		boolean nnexist = false;
 		boolean adjexist = false;
+		boolean verbexist = false;
 		for (String word : words){
 			String key = word.split("/")[0];
 			String value = word.split("/")[1];
 			Word w = new Word(key,value);
 			this.words.add(w);
 			w.weight = 0.3;
-			if (value.equals("verb")) w.weight = 1;
+			if (value.equals("verb")) {
+				if (verbexist) w.weight = 0.7; else
+				w.weight = 1;
+				verbexist = true;
+			}
 			if (value.equals("knn")) {
 				if (knnexist) w.weight = 0.7; else
 				w.weight = 1;

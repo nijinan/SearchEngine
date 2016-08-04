@@ -1,18 +1,54 @@
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Scanner;
+
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.queryparser.classic.QueryParser;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
+
 
 public class SearchEngine {
-	List<Document> docs = new ArrayList<Document>();
+	List<Doc> docs = new ArrayList<Doc>();
 	List<Task> tasks = new ArrayList<Task>();
     private static int NUM_OF_THREAD = 8;
     static Thread[] threads = new Thread[NUM_OF_THREAD];
+	private static Analyzer analyzer;
+	private static File file;
+	public static Directory directory;
+	private static IndexWriterConfig config;
+	static {
+		analyzer = new StandardAnalyzer();
+		file = new File("D:\\codes\\index");
+		try {
+			directory = FSDirectory.open(file.toPath());
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}	
 	public SearchEngine() {
 		// TODO Auto-generated constructor stub
 	}
@@ -23,7 +59,7 @@ public class SearchEngine {
 		for (int time = 0; time < 1; time++)
 		for (File file : dir.listFiles()){
 			try {
-				Document doc = new Document();
+				Doc doc = new Doc();
 				doc.name = file.getName();
 				doc.id = no;
 				no++;
@@ -49,7 +85,7 @@ public class SearchEngine {
 	
 	public void calcidf(){
 		// get normal factor for each document
-		for (Document doc : docs){
+		for (Doc doc : docs){
 			for (Task task : doc.tasks){
 				double score = 0;
 				for (Task t : doc.tasks){
@@ -71,13 +107,34 @@ public class SearchEngine {
 				e.printStackTrace();
 			}
         }
-		for (Document doc : docs){
+		for (Doc doc : docs){
 			for (Task task : doc.tasks){
 				for (double relevance : task.relevances){
 					task.tfidf.add(relevance * Math.log(docs.size()/task.idf));
 				}
 			}
 		}
+	}
+	
+	public void savetfidf(String path) throws IOException{
+		File file = new File(path);
+		FileWriter fw = new FileWriter(file);
+		for (Task task : tasks){
+			for (Double d : task.tfidf){
+				fw.write(d.toString()+" ");
+			}
+		}
+		fw.close();
+	}
+	
+	public void loadtfidf(String path) throws FileNotFoundException{
+		File file = new File(path);
+		InputStream is = new FileInputStream(file);
+		Scanner sc = new Scanner(is);
+		for (Task task : tasks){
+			for (int i = 0 ; i < docs.size(); i++)
+			task.tfidf.add(sc.nextDouble());
+		}		
 	}
 	
 	public List<Double> search(String q){
@@ -101,7 +158,7 @@ public class SearchEngine {
 	public List<String> search1(String query){
 		List<String> ret = new ArrayList<String>();
 		String[] words = query.replaceAll(" +", " ").trim().split(" ");
-		for (Document doc : docs){
+		for (Doc doc : docs){
 			for (Task task : doc.tasks){
 				boolean flag = true;
 				for (String word : words){
@@ -118,6 +175,47 @@ public class SearchEngine {
 		Collections.sort(ret,String.CASE_INSENSITIVE_ORDER);
 		return ret;
 	}
+	
+	public void createIndex(){
+		for (Task task : tasks){
+			String key = task.toString();
+			String value = task.toString() + " " + task.doc.name;
+			try {
+				config = new IndexWriterConfig(analyzer);
+				IndexWriter iwriter = new IndexWriter(directory, config);
+			    Document doc = new Document();
+			    doc.add(new TextField("key", key, Field.Store.YES));
+			    doc.add(new TextField("value", value, Field.Store.YES));
+			    iwriter.addDocument(doc);
+			    iwriter.close();	
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
+	}
+	
+	public String searchIndex(String queryStr){
+		try {
+			Query query;
+		    DirectoryReader ireader = DirectoryReader.open(directory);
+		    IndexSearcher isearcher = new IndexSearcher(ireader);
+		    QueryParser parser = new QueryParser("key", analyzer);
+			query = parser.parse(queryStr);
+			ScoreDoc[] hits = isearcher.search(query, 10).scoreDocs;
+			// Iterate through the results:
+		    for (int i = 0; i < hits.length; i++) {
+		    	Document hitDoc = isearcher.doc(hits[i].doc);
+		    	System.out.println(hits[i].score + "\n" + hitDoc.get("value"));
+		    	
+		    }
+		    //Document doc = isearcher.doc(hits[0].doc); 
+		    //return doc.get("value");
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return null;
+	}
+	
 	public class MyThread extends Thread
 	{
 	    private int id;
@@ -127,14 +225,14 @@ public class SearchEngine {
 	    }
 	    public void run()
 	    {
-	    	for (Document doc : docs){
+	    	for (Doc doc : docs){
     			if (doc.id % NUM_OF_THREAD != id)continue;
     			for (Task task : doc.tasks){
-    				for (Document d : docs){
+    				for (Doc d : docs){
     					double tf = 0;
     					double relevance = 0;
     					for (Task t : d.tasks){
-    						double similaity = task.getSim(t); 
+    						double similaity = task.getSim(t);
     						tf = Math.max(tf, similaity);
     						relevance += similaity * t.score;
     					}
@@ -146,16 +244,15 @@ public class SearchEngine {
     		}
 	    }
 	}
-	public static void main(String args[]){
+	public static void main(String args[]) throws IOException{
 		SearchEngine se = new SearchEngine();
         long start = System.nanoTime();
         
 		se.LoadDoc("D:\\ApiDocs");
-//		System.out.println("");
-//		for (String str : se.search1("want asdf. go")){
-//			System.out.println(str);
-//		}
-		se.calcidf();
+		//se.calcidf();
+		//se.createIndex();
+		//se.searchIndex("1.txt");
+		se.loadtfidf("D:\\codes\\ApiTFIDF.txt");
 		List<Double> tmp = se.search("take/verb task/knn from/prop index/nn");
 		for (double t : tmp){
 			System.out.println(t);
