@@ -134,10 +134,10 @@ public class SearchEngine {
 		for (Task task : tasks){
 			for (int i = 0 ; i < docs.size(); i++)
 			task.tfidf.add(sc.nextDouble());
-		}		
+		}
 	}
 	
-	public List<Double> search(String q){
+	public List<Double> searchMain(String q){
 		Task query = new Task();
 		query.settask(q);
 		List<Double> A = new ArrayList<Double>();
@@ -155,7 +155,7 @@ public class SearchEngine {
 		return B;
 	}
 	
-	public List<String> search1(String query){
+	public List<String> searchNaviTask(String query){
 		List<String> ret = new ArrayList<String>();
 		String[] words = query.replaceAll(" +", " ").trim().split(" ");
 		for (Doc doc : docs){
@@ -168,7 +168,8 @@ public class SearchEngine {
 					}
 				}
 				if (flag){
-					ret.add(task.toString() + " " + doc.name);
+					/*change the content added to the list*/
+					ret.add(task.toString() + " ***** " + doc.name);
 				}
 			}
 		}
@@ -179,7 +180,10 @@ public class SearchEngine {
 	public void createIndex(){
 		for (Task task : tasks){
 			String key = task.toString();
+			
+			/*change the value of value*/
 			String value = task.toString() + " " + task.doc.name;
+			
 			try {
 				config = new IndexWriterConfig(analyzer);
 				IndexWriter iwriter = new IndexWriter(directory, config);
@@ -194,7 +198,8 @@ public class SearchEngine {
 		}
 	}
 	
-	public String searchIndex(String queryStr){
+	public List<String> searchIndex(String queryStr){
+		List<String> ret = new ArrayList<String>(); 
 		try {
 			Query query;
 		    DirectoryReader ireader = DirectoryReader.open(directory);
@@ -205,7 +210,8 @@ public class SearchEngine {
 			// Iterate through the results:
 		    for (int i = 0; i < hits.length; i++) {
 		    	Document hitDoc = isearcher.doc(hits[i].doc);
-		    	System.out.println(hits[i].score + "\n" + hitDoc.get("value"));
+		    	//System.out.println(hits[i].score + "\n" + hitDoc.get("value"));
+		    	ret.add(hitDoc.get("value"));
 		    	
 		    }
 		    //Document doc = isearcher.doc(hits[0].doc); 
@@ -213,7 +219,7 @@ public class SearchEngine {
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
-		return null;
+		return ret;
 	}
 	
 	public class MyThread extends Thread
@@ -247,16 +253,34 @@ public class SearchEngine {
 	public static void main(String args[]) throws IOException{
 		SearchEngine se = new SearchEngine();
         long start = System.nanoTime();
+        se.LoadDoc("D:\\ApiDocs");
+        /*************************/
+        //lucene example
         
-		se.LoadDoc("D:\\ApiDocs");
-		//se.calcidf();
-		//se.createIndex();
-		//se.searchIndex("1.txt");
+        //run only once
+        se.createIndex();
+        //search example
+		List<String> t = se.searchIndex("take task from index");
+        
+		/*************************/
+		//Relevance idf example
+		
+        //run only once		
+		se.calcidf();
+		se.savetfidf("D:\\codes\\ApiTFIDF.txt");
+		
+		//search example
 		se.loadtfidf("D:\\codes\\ApiTFIDF.txt");
-		List<Double> tmp = se.search("take/verb task/knn from/prop index/nn");
-		for (double t : tmp){
-			System.out.println(t);
+		List<Double> scores = se.searchMain("take/verb task/knn from/prop index/nn");
+		for (Doc doc : se.docs){
+			System.out.println(doc.name);
 		}
+		
+		/*************************/
+		//TaskNavi example
+		se.LoadDoc("D:\\ApiDocs");
+		List<String> ls = se.searchNaviTask("take task from navi");
+		// ls : take task from index ***** 1.txt 
 		long end = System.nanoTime();
 		System.out.println((double)(end-start)/1000000000);
 	}
