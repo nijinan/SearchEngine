@@ -37,14 +37,18 @@ public class SearchEngine {
     private static int NUM_OF_THREAD = 8;
     static Thread[] threads = new Thread[NUM_OF_THREAD];
 	private static Analyzer analyzer;
-	private static File file;
-	public static Directory directory;
+	private static File fileDoc;
+	public static Directory directoryDoc;
+	private static File fileTask;
+	public static Directory directoryTask;	
 	private static IndexWriterConfig config;
 	static {
 		analyzer = new StandardAnalyzer();
-		file = new File("D:\\codes\\index");
+		fileDoc = new File("D:\\codes\\index");
+		fileTask = new File("D:\\codes\\indexTask");
 		try {
-			directory = FSDirectory.open(file.toPath());
+			directoryDoc = FSDirectory.open(fileDoc.toPath());
+			directoryTask = FSDirectory.open(fileTask.toPath());
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -177,7 +181,7 @@ public class SearchEngine {
 		return ret;
 	}
 	
-	public void createIndex(){
+	public void createTaskIndex(){
 		for (Task task : tasks){
 			String key = task.toString();
 			
@@ -186,7 +190,7 @@ public class SearchEngine {
 			
 			try {
 				config = new IndexWriterConfig(analyzer);
-				IndexWriter iwriter = new IndexWriter(directory, config);
+				IndexWriter iwriter = new IndexWriter(directoryTask, config);
 			    Document doc = new Document();
 			    doc.add(new TextField("key", key, Field.Store.YES));
 			    doc.add(new TextField("value", value, Field.Store.YES));
@@ -198,11 +202,56 @@ public class SearchEngine {
 		}
 	}
 	
-	public List<String> searchIndex(String queryStr){
+	public void createDocIndex(){
+		for (Doc d : docs){
+			String key = d.toString();
+			
+			/*change the value of value*/
+			String value = ""+d.id;
+			
+			try {
+				config = new IndexWriterConfig(analyzer);
+				IndexWriter iwriter = new IndexWriter(directoryDoc, config);
+			    Document doc = new Document();
+			    doc.add(new TextField("key", key, Field.Store.YES));
+			    doc.add(new TextField("value", value, Field.Store.YES));
+			    iwriter.addDocument(doc);
+			    iwriter.close();	
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
+	}
+	
+	public List<String> searchTaskIndex(String queryStr){
 		List<String> ret = new ArrayList<String>(); 
 		try {
 			Query query;
-		    DirectoryReader ireader = DirectoryReader.open(directory);
+		    DirectoryReader ireader = DirectoryReader.open(directoryTask);
+		    IndexSearcher isearcher = new IndexSearcher(ireader);
+		    QueryParser parser = new QueryParser("key", analyzer);
+			query = parser.parse(queryStr);
+			ScoreDoc[] hits = isearcher.search(query, 10).scoreDocs;
+			// Iterate through the results:
+		    for (int i = 0; i < hits.length; i++) {
+		    	Document hitDoc = isearcher.doc(hits[i].doc);
+		    	System.out.println(hits[i].score + "\n" + hitDoc.get("value"));
+		    	ret.add(hitDoc.get("value"));
+		    	
+		    }
+		    //Document doc = isearcher.doc(hits[0].doc); 
+		    //return doc.get("value");
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return ret;
+	}
+	
+	public List<String> searchDocIndex(String queryStr){
+		List<String> ret = new ArrayList<String>(); 
+		try {
+			Query query;
+		    DirectoryReader ireader = DirectoryReader.open(directoryDoc);
 		    IndexSearcher isearcher = new IndexSearcher(ireader);
 		    QueryParser parser = new QueryParser("key", analyzer);
 			query = parser.parse(queryStr);
@@ -258,10 +307,9 @@ public class SearchEngine {
         //lucene example
         
         //run only once
-        se.createIndex();
+        se.createTaskIndex();
         //search example
-		List<String> t = se.searchIndex("take task from index");
-        
+		List<String> t = se.searchTaskIndex("take task from index");
 		/*************************/
 		//Relevance idf example
 		
